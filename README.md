@@ -1,7 +1,7 @@
 # bilibili下载器  python
 
 # 准备工作
-
+0. 安装 `Anaconda python` 环境
 1. 下载[FFmpeg](https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full.7z)并将文件夹解压，将内部的bin文件夹添加到系统环境变量PATH。
 2. 安装模块 `pip install qrcode`。
 3. 安装模块 `pip install bypy`，运行 `bypy info` 通过激活码绑定百度云账户
@@ -20,8 +20,11 @@
 
 - [x] [markcake.py](./markcake.py)将视频生成为Markdown文档链接。
 
+# 特别鸣谢
 
+SocialSisterYi / bilibili-API-collect
 
+blogwy / BilibiliVideoDownload
 
 
 
