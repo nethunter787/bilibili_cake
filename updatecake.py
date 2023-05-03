@@ -4,8 +4,9 @@
 # 0.Anaconda Spyder (Tsinghua镜像站下载较快)
 # 1.pip install qrcode (windows图标找到Anaconda prompt)
 # 2. https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full.7z 合成视频依赖FFmpeg拓展包(potplayer也依赖此)
-# 3. 更新了 getUpName 和 getUpVideos 的API接口 20230503
+# 3. (2022年5月2日新增) pip install bypy 然后运行 bypy info 通过激活码绑定百度云账户
 # =============================================================================
+
 import sys
 import socket
 import traceback
@@ -26,57 +27,38 @@ import ssl
 
 from io import BytesIO
 from urllib.error import HTTPError
-
-global AllinOneFolder   # 指定下载文件夹
-global VideoFilter      # 视频过滤开关
-global context          # 视频过滤开关
+global AllinOneFolder # 指定下载文件夹
 # =============================================================================
 # 用户参数配置
 # UnixTimeSet 指开始记录的时刻 单位秒
 # sleepsec 为检查周期 单位秒
+# 如下配置示例视频将下载到路径为 E:\Bilight\DynamicVideos的 文件夹下面
 # =============================================================================
-
-work_path       = os.path.join(os.getcwd())
-AllinOneFolder  = ''   # 设置为空时以作者分类
-
-uid_int         = 121288439
-VideoFilter     = False 
-video_tid       = 0 # UP视频格式筛选,129为舞蹈视频,0为不筛选
-video_keyword   = '' # 空字符表示不对视频进行关键词筛查
-
-# uid_int         = int(input('[-]请输入作者uid:'))
-# VideoFilter     = True if input('[-]是否对视频进行滤除（回车表示不滤除）') else False 
-# video_tid       = int(input('[-]请输入视频筛选编号（129舞蹈，160生活，0为全部）:')) if VideoFilter else 0 # UP视频格式筛选,129为舞蹈视频,0为不筛选
-# video_keyword   = input('[-]请输入视频关键字（回车表示全部）:') if VideoFilter else '' # 空字符表示不对视频进行关键词筛查
-
-if(len(sys.argv)==2):
-    uid_int = int(sys.argv[1])
-else:
-    None
-    
+UnixTimeSet = int(time.time())-6*60*60
+sleepsec = 176 #检查投稿更新的周期
+# work_path       = r'C:\Users\Administrator\Desktop\bilicake'
+work_path       = '/home/ubuntu'
+AllinOneFolder  = 'DynamicVideos'
+baidu_dir_name  = 'bilicake_videos'
 # =============================================================================
 # 固定参数配置
 # =============================================================================
-
-
+global VideoFilter    # 视频过滤开关
+global context    # 视频过滤开关
+VideoFilter = False
 cookies_filename        = 'bilibili_cookies_downloader.txt' # 默认与运行文件同目录
 cookies_filename_9527   = 'bilibili_cookies_scriber.txt'
-proxy                   = ''
-UA                      = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36'
-context                 = ssl._create_unverified_context()
+proxy       = ''
+UA          = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36'
+context     = ssl._create_unverified_context()
 
-if not os.path.exists(work_path):
-    os.mkdir(work_path)
-else:
-    None
 # =============================================================================
 # 自定义函数部分
 # =============================================================================
 # 从api网站获取获取json
 def getjson(api_url):
     response  = urllib.request.urlopen(api_url)
-    html = response.read().decode('utf-8')
-    data_json = json.loads(html)
+    data_json = json.loads(response.read())
     return data_json
 
 
@@ -143,13 +125,10 @@ def checklogin():
         check_json = getjson(check_url)
         if check_json['data']['isLogin']:
             if check_json['data']['vipStatus']:
-                print('VIP is Login')
                 return 2
             else:
-                print('Normal is Login')
                 return 1
         else:
-            print('Not Login')
             return 0
     except Exception:
         print('[×] 无法获取登录账号信息')
@@ -231,15 +210,11 @@ def getUpName(mid):
     try:
         mid = str(mid)
         time.sleep(0.5)
-        # up_info_api  = 'https://api.bilibili.com/x/space/acc/info?mid=%s'%mid # Old Api
-        up_info_api  = 'https://api.bilibili.com/x/space/wbi/acc/info?mid=%s'%mid
+        up_info_api  = 'https://api.bilibili.com/x/space/acc/info?mid=%s'%mid
         up_info_data = getjson(up_info_api)
-        uid_up_name = up_info_data['data']['name']
-        print(uid_up_name)
-        return uid_up_name#返回名称
+        return up_info_data['data']['name']#返回名称
     except:
-        raise Exception('Up does not exists:%d'%mid)
-        # return None
+        return None
     
 # 输入uid 返回投稿视频的字典列表
 def getUpVideos(up_uid,startpage=1,endpage=10,tid=0,keyword=''):
@@ -254,7 +229,7 @@ def getUpVideos(up_uid,startpage=1,endpage=10,tid=0,keyword=''):
                                         'order':'pubdate',# 降序排序 click(播放)/stow(收藏)
                                         }
         space_video_search_params_urlcoded = urllib.parse.urlencode(space_video_search_params_dict)
-        up_videos_api = 'https://api.bilibili.com/x/space/wbi/arc/search?%s'%space_video_search_params_urlcoded
+        up_videos_api = 'https://api.bilibili.com/x/space/arc/search?%s'%space_video_search_params_urlcoded
         space_video_search_json = getjson(up_videos_api)
         if space_video_page == startpage:
             #获取分类表 如果该页无视频则返回None
@@ -419,19 +394,20 @@ def getBVInfo(bvid):
         videoInfo_json    = json.loads(videoInfo_Res[0])
     else:
         print('[×] 稿件被删除 \nhttps://www.bilibili.com/video/%s'%bvid)
-        return None
+        return (None,None)
     if not downloadInfo_json:# 检测网页是否获取到Json
         print('[×] Error: Info_Json \nhttps://www.bilibili.com/video/%s'%bvid)
-        return None
+        return (None,None)
     if not 'bvid' in videoInfo_json:# 检测网页格式是否正确
         print('[×] Error: videoInfo_json Type \nhttps://www.bilibili.com/video/%s'%bvid)
-        return None
+        return (None,None)
     # bv_info = {'downloadInfo':downloadInfo_json,'videoInfo_json':videoInfo_json}
+    video_view     = videoInfo_json['videoData']['stat']['view']       # 视频播放量
     video_like     = videoInfo_json['videoData']['stat']['like']       # 视频点赞数
     video_favorite = videoInfo_json['videoData']['stat']['favorite']   # 视频收藏数
     video_score = int((((video_favorite+10)/(video_like+10))**2)*10) # 视频分数计算公式
     # video_score_new = video_score+int((math.log10(video_favorite+100)-2)**2) # 根据人气适当的加0~7分通过门限
-    return video_score
+    return (video_score,int(video_view/1000))
 
 # 输入视频BVid下载其所有分集
 def downloader_BV(up_video_bvid,Filter=False,Folder_Path='.',Folder=''):
@@ -498,21 +474,20 @@ def downloader_BV(up_video_bvid,Filter=False,Folder_Path='.',Folder=''):
                 print('[×] 视频不满足下载条件，已过滤。\n发布者：%s\n标题：%s\n数据：%s\n网址：https://www.bilibili.com/video/%s\n'%(video_up_name,video_title,video_play_msg,video_bvid))
                 return {'flag':True,'bvid':up_video_bvid,'name':up_video_name,'msg':'[×] Not pass:%s'%video_play_msg}
         
-        
-        
+        pic_folder_name = '%s//%s_pic'%(Folder_Path,Folder)
+        os.mkdir(pic_folder_name) if not os.path.exists(pic_folder_name) else None
         
         if Folder:
             video_folder_name = '%s//%s'%(Folder_Path,Folder)
-            pic_folder_name = '%s//%s_pic'%(Folder_Path,Folder)
-            
+            os.mkdir(video_folder_name) if not os.path.exists(video_folder_name) else None
         else:
-            # 查询是否已经存在文件夹
+            # 确定下载文件夹
             foldar_name_with_uid = [i for i in os.listdir(Folder_Path) if i.split('_')[-1] == str(video_up_uid)]
-            video_folder_name = '%s//%s'%(Folder_Path,foldar_name_with_uid[0]) if foldar_name_with_uid else '%s//%s_%d'%(Folder_Path,video_up_name,video_up_uid)
-            pic_folder_name = '%s//%s_%d_pic'%(Folder_Path,video_up_name,video_up_uid)
-            
-        os.mkdir(video_folder_name) if not os.path.exists(video_folder_name) else None
-        os.mkdir(pic_folder_name) if not os.path.exists(pic_folder_name) else None
+            if foldar_name_with_uid: # 先查询是否已经存在UP视频文件夹(通过检测后缀uid)
+                video_folder_name = '%s//%s'%(Folder_Path,foldar_name_with_uid[0])
+            else: # 没有则新建UP视频文件夹
+                video_folder_name = '%s//%s_%d'%(Folder_Path,video_up_name,video_up_uid)
+                os.mkdir(video_folder_name) if not os.path.exists(video_folder_name) else None
         # 开始分页下载
         for bvid_page in range(1,len(video_pages)+1):
             # 输入视频基本信息
@@ -529,9 +504,13 @@ def downloader_BV(up_video_bvid,Filter=False,Folder_Path='.',Folder=''):
             audio_download_list = downinfo_json['data']['dash']['audio']
             video_download_list_sorted = sorted(video_download_list,key=lambda x:x['id'],reverse=True) #按id降序
             audio_download_list_sorted = sorted(audio_download_list,key=lambda x:x['id'],reverse=True) 
-            # video_download_url = video_download_list_sorted[0]['baseUrl'] # 最高画质
-            # audio_download_url = audio_download_list_sorted[0]['baseUrl']
-            
+            video_download_url = video_download_list_sorted[0]['baseUrl'] # 最高画质
+            audio_download_url = audio_download_list_sorted[0]['baseUrl']
+            if(video_highest_format_qn != video_download_list_sorted[0]['id']):
+                print('[!]qn_max = %d , qn_now = %d\n'%(video_highest_format_qn,video_download_list_sorted[0]['id']))
+                video_quality_desc = 'Unknow_%d'%video_download_list_sorted[0]['id']
+            else:
+                video_quality_desc = video_highest_format_desc
             # 确定下载文件名和路径
             detect_str = '%d]_%s.mp4'%(bvid_page,video_bvid)
             file_name_with_puid = [i for i in os.listdir(video_folder_name) if i.split('[P')[-1] == detect_str]
@@ -539,44 +518,52 @@ def downloader_BV(up_video_bvid,Filter=False,Folder_Path='.',Folder=''):
                 print("[√] 视频已存在。\n%s[P%d]"%(video_title,bvid_page))# 跳过重复文件下载
                 continue 
             else:
-                
+                video_filename_raw = "【%02d】【%s】【%s】%s_%s_[P%d]_%s"%(video_score,video_up_name,video_quality_desc,video_title,video_up_uid,bvid_page,video_bvid)
+                video_filename_new = re.sub('[^A-Za-z0-9\u4e00-\u9fa5【】\[\]_]+', '', video_filename_raw) # 字符筛选
+                video_downpath = '%s//%s'%(video_folder_name,video_filename_new)
+                pic_downpath = '%s//%s'%(pic_folder_name,video_filename_new)
                 # 破解防盗链并下载视频
                 referer_url  = video_url if bvid_page == 1 else '%s?p=%d'%(video_url,bvid_page)
                 urlretrieve_evo_headers = [('referer', referer_url),('User-agent', UA)]
                 # 封面下载
-
+                try:
+                    urlretrieve_evo(video_cover_url,filename='%s.jpg'%pic_downpath,headers=urlretrieve_evo_headers)
+                except HTTPError:
+                    print('[×] %s 封面下载失败'%up_video_bvid)
                 # 视频下载
-                for video_download in video_download_list_sorted:
-                    if(video_highest_format_qn != video_download['id']):
-                        print('[!]qn_max = %d , qn_now = %d\n'%(video_highest_format_qn,video_download_list_sorted[0]['id']))
-                        video_quality_desc = 'Unknow_%d'%video_download_list_sorted[0]['id']
+                try:
+                    if len(video_download_list_sorted)>0:
+                        video_download_url = video_download_list_sorted[0]['baseUrl'] # 备用链接
+                        Vsize = urlretrieve_evo(video_download_url,filename='%s_Video.m4s'%video_downpath,headers=urlretrieve_evo_headers)
                     else:
-                        video_quality_desc = video_highest_format_desc
-                    video_filename_raw = "【%02d】【%s】【%s】%s_%s_[P%d]_%s"%(video_score,video_up_name,video_quality_desc,video_title,video_up_uid,bvid_page,video_bvid)
-                    video_filename_new = re.sub('[^A-Za-z0-9\u4e00-\u9fa5【】\[\]_]+', '', video_filename_raw) # 字符筛选
-                    video_downpath = '%s//%s'%(video_folder_name,video_filename_new)
-                    pic_downpath = '%s//%s'%(pic_folder_name,video_filename_new)
-                    try:
-                        Vsize = urlretrieve_evo(video_download['baseUrl'],filename='%s_Video.m4s'%video_downpath,headers=urlretrieve_evo_headers)
-                        break
-                    except:
-                        print('[×] %s视频下载失败,尝试不同下载源'%up_video_bvid)
-                        
-                    try:
-                        urlretrieve_evo(video_cover_url,filename='%s.jpg'%pic_downpath,headers=urlretrieve_evo_headers)
-                    except HTTPError:
-                        print('[×] %s 封面下载失败'%up_video_bvid)
-                        
+                        raise Exception('VideoDownSource-1 not aviliable')
+                except HTTPError:
+                    print('[×] %s下载失败,尝试第二次'%up_video_bvid)
+                    if len(video_download_list_sorted)>1:
+                        video_download_url_bak = video_download_list_sorted[0]['baseUrl'] # 备用链接
+                        Vsize = urlretrieve_evo(video_download_url_bak,filename='%s_Video.m4s'%video_downpath,headers=urlretrieve_evo_headers)
+                    else:
+                        raise Exception('VideoDownSource-2 not aviliable')
                 # 音频下载
-                for audio_download in audio_download_list_sorted:
-                    try:
-                        Asize = urlretrieve_evo(audio_download['baseUrl'],filename='%s_Audio.m4s'%video_downpath,headers=urlretrieve_evo_headers)
-                        break
-                    except:
-                        print('[×] %s音频下载失败,尝试不同下载源'%up_video_bvid)
+                try:
+                    if len(video_download_list_sorted)>0:
+                        audio_download_url = audio_download_list_sorted[0]['baseUrl']
+                        Asize = urlretrieve_evo(audio_download_url,filename='%s_Audio.m4s'%video_downpath,headers=urlretrieve_evo_headers)
+                    else:
+                        raise Exception('AudioDownSource-1 not aviliable')
+                except HTTPError:
+                    print('[×] %s下载失败,尝试第二次'%up_video_bvid)
+                    if len(video_download_list_sorted)>1:
+                        audio_download_url_bak = audio_download_list_sorted[0]['baseUrl']
+                        Asize = urlretrieve_evo(audio_download_url_bak,filename='%s_Audio.m4s'%video_downpath,headers=urlretrieve_evo_headers)
+                    else:
+                        raise Exception('AudioDownSource-2 not aviliable')
                 
                 # 使用ffmpeg合成视频
                 cmd_str = 'ffmpeg -i %s_Video.m4s -i %s_Audio.m4s -codec copy %s.mp4'%(video_downpath,video_downpath,video_downpath)
+                # cmd_res = os.popen(cmd_str)
+                # cmd_res.close()
+                
                 os.system(cmd_str) 
                 while(True):
                     time.sleep(2) # 等待合成结束，同时防止爬取速度过快。
@@ -592,7 +579,15 @@ def downloader_BV(up_video_bvid,Filter=False,Folder_Path='.',Folder=''):
                 except Exception: None
                 print("[√] 下载成功。(%4.1f MB)\n发布者：%s\n视频名：%s[P%d]\n数据：%s"%((Vsize+Asize)/1048576,video_up_name,video_title,bvid_page,video_play_msg))
         return {'flag':True,'bvid':up_video_bvid,'name':up_video_name,'msg':'[√] 下载成功'}
-
+    except HTTPError:
+        error_msg = '[×] HTTPError:【%s】%s'%(up_video_bvid,up_video_name)
+        print(error_msg)
+        try: os.remove('%s_Video.m4s'%video_downpath)
+        except Exception: None
+        try: os.remove('%s_Audio.m4s'%video_downpath)
+        except Exception: None
+        return {'flag':False,'bvid':up_video_bvid,'name':up_video_name,'msg':error_msg}
+    
     except Exception:
         error_msg = '[×] Failed:【%s】%s'%(up_video_bvid,up_video_name)
         print(error_msg)
@@ -619,7 +614,7 @@ def thread_downloader_BV(name,this_bvid_queue,this_bvid_failed_queue):
 
         
 # 运行多线程【队列消息传递】
-def runThreads(func,Queue_input,threadsnum=2,wait=True):
+def runThreads(func,Queue_input,threadsnum=4,wait=True):
     Queue_output = queue.Queue()
     Pool_threads = [threading.Thread(target=func, args=('Thread[%d]'%i,Queue_input,Queue_output)) for i in range(threadsnum)]
     for thread_each in Pool_threads: 
@@ -659,100 +654,86 @@ def savejson(json_dict,filepath):
         json.dump(json_dict,fwjson)
     return True
 
-def cakenamevalidate(vfilename):
-    vsplit = vfilename.split('.')
-    if(len(vsplit)>1):
-        videoname = vsplit[-2]
-        bvid = videoname.split('_')[-1]
-        if(videoname.split('_')[-1][0:2]=='BV' and vsplit[-1] == 'mp4'): #符合规范
-            return [bvid,videoname]
-        else:
-            return []
 # 获取文件夹内的合法规范的bvid列表
 def getfolderbvlist(folderpath):
     bvlist = {}
     if os.path.exists(folderpath):
         for video in os.listdir(folderpath):
-            validate_res = cakenamevalidate(video)
-            if validate_res:
-                bvlist[validate_res[0]] = validate_res[1] # {bvid : videoname}
+            vsplit = video.split('.')
+            videoname = vsplit[-2]
+            bvid = videoname.split('_')[-1]
+            if(videoname.split('_')[-1][0:2]=='BV'): #符合规范
+                bvlist[bvid] = 1
     return bvlist
 
-# 更新文件夹内的所有视频状态
-def updatefolder(folderpath,ScoreUpdate = False):
-    if os.path.exists(folderpath):
-        for folderfilename in os.listdir(folderpath):
-            validate_res = cakenamevalidate(folderfilename)
-            if validate_res:
-                bvid = validate_res[0]
-                videoname = validate_res[1]
-                if videoname[0:3] != '【删】':
+
+#===========================主函数===========================
+
+# 输入参数个数检测
+
+if(len(sys.argv)>2):
+    rename_flag = True
+else:
+    rename_flag = False
+
+# 设定工作目录
+
+if(len(sys.argv)>1):
+    updatefolder = sys.argv[1]
+else:
+    updatefolder = 'DynamicVideos'
+updatepath  = os.path.join(os.getcwd(),updatefolder)
+
+
+cookiejar = cake_login(cookies_filename_9527) # 登陆9527账号
+time.sleep(1)
+# 删稿视频查询,同时更新评分
+if os.path.exists(updatepath):
+    for folderfilename in os.listdir(updatepath):
+        vsplit = folderfilename.split('.')
+        if(len(vsplit)>1):
+            videoname = vsplit[-2]
+            bvid = videoname.split('_')[-1]
+            if(videoname.split('_')[-1][0:2]=='BV' and vsplit[-1] == 'mp4'): #符合规范
+                if videoname[0:3] != '【删】': # 对未标识删除的文件进行检测
                     try:
-                        video_score = getBVInfo(bvid)
+                        video_score,video_view = getBVInfo(bvid)
                         time.sleep(0.2)
-                        if video_score == None: # 如果文件已经被删除则标识出来
+                        if video_score == None: # 如果文件已经被删除则分数为None
                             newfolderfilename = '【删】%s'%folderfilename
-                            lastpath = os.path.join(folderpath,folderfilename)
-                            newpath = os.path.join(folderpath,newfolderfilename)
-                            os.rename(lastpath,newpath)
+                            lastpath = os.path.join(updatepath,folderfilename)
+                            newpath = os.path.join(updatepath,newfolderfilename)
+                            os.rename(lastpath,newpath) # 使用os进行 rename
                             print('[!]被删除：%s'%newfolderfilename)
                         else:# 如果文件未删除 则更新分数状态
-                            if(ScoreUpdate):
-                                # 更新视频分数
-                                newfolderfilename = '【%02d】【%s' % (video_score,folderfilename.split('】【')[-1])
-                                lastpath = os.path.join(folderpath,folderfilename)
-                                newpath = os.path.join(folderpath,newfolderfilename)
-                                os.rename(lastpath,newpath)
-                                print('%s ->\n%s'%(folderfilename,newfolderfilename))
+                            None
+                            # 更新视频分数
+                            scorenamesplit = folderfilename.split('】【')
+
+                            if (len(scorenamesplit)>1):
+                                newfolderfilename = '【%02d】【%s' % (video_score,''.join(scorenamesplit[1:]))
+                                lastpath = os.path.join(updatepath,folderfilename)
+                                newpath = os.path.join(updatepath,newfolderfilename)
+                                if rename_flag:
+                                    os.rename(lastpath,newpath) 
+                                    print(newfolderfilename)
+                                else:
+                                    None
                     except:
                         print('[×]getBVInfo error: %s'%videoname)
+            else:
+                None
 
 
-# =============================================================================
-# 主函数（登录,代理,Cookies）
-# =============================================================================
-
-
-cookiejar = cake_login(cookies_filename)
-uid_up_name = getUpName(uid_int)
-input_list_bvid  = []
-Queue_input_bvid = queue.Queue()
-
-time.sleep(1)
-up_videos = getUpVideos(uid_int,tid=video_tid,keyword=video_keyword)
-up_videos.reverse() # 先下载日期久远的视频
-# 向下载队列添加视频
-for up_video in up_videos: input_list_bvid.append(up_video['bvid'])
-
-
-# =============================================================================
-# 主函数运行
-# =============================================================================
-# VideoFilter = False
-# input_list_bvid = ['BV1Yt411m7kA','BV1ts411w7CR',]
-# 将bvid输入下载队列
-for bvid in input_list_bvid: Queue_input_bvid.put(bvid)
-# 运行多线程下载
-Queue_output_bvid = runThreads(thread_downloader_BV,Queue_input_bvid,threadsnum=4)
-
-# 输出队列信息处理
-videos_failed   = []
-while not Queue_output_bvid.empty(): 
-    bvid,name,msg = Queue_output_bvid.get()
-    videos_failed.append({'bvid':bvid,'name':name,'msg':msg})
-# 打印出下载失败的视频
-for video in videos_failed: 
-    print('[×] %s %s\nhttps://www.bilibili.com/video/%s'%(video['bvid'],video['msg'],video['bvid']))
-
-# =============================================================================
-# 主函数结束
-# =============================================================================
-
-# 版本更新日志 20220719
-# 下载UP主视频，多线程, 超2个参数时不过滤 默认过滤
-"""
-重要参考内容，致以无比感谢
-【Github】 
-SocialSisterYi/bilibili-API-collect
-blogwy / BilibiliVideoDownload
-"""
+# 版本更新日志
+# 2022.05.02
+# 加入百度云上传功能
+# 修改删稿检测机制 以及增加分数更新机制
+# 2022.05.03
+# 上传单独拆分一个线程
+# 解决incomplete错误
+# 2022.07.08 
+# 不更新点赞比例只打印删稿
+# 2022.08.06
+# 增加播放量检测功能 排序功能
+# 输入三个参数则开始重命名 第三个参数为真时，命名为播放量 假时，命名为分数。

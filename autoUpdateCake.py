@@ -387,13 +387,13 @@ def getBVInfo(bvid):
         f               = gzip.GzipFile(fileobj=buff) 
         html_unpacked   = f.read()
         video_html_res  = html_unpacked.decode('utf-8')
-        downloadInfo_Clue = re.compile(r'__playinfo__=(.*?)</script><script>window')
-        downloadInfo_Res  = re.findall(downloadInfo_Clue,video_html_res)
+        # downloadInfo_Clue = re.compile(r'__playinfo__=(.*?)</script><script>window')
+        # downloadInfo_Res  = re.findall(downloadInfo_Clue,video_html_res)
         videoInfo_Clue    = re.compile(r'<script>window.__INITIAL_STATE__=(.*?);\(function\(\)')
         videoInfo_Res     = re.findall(videoInfo_Clue,video_html_res)
-        downloadInfo_json = {}
+        # downloadInfo_json = {}
         videoInfo_json    = {}
-        downloadInfo_json = json.loads(downloadInfo_Res[0])
+        # downloadInfo_json = json.loads(downloadInfo_Res[0])
         videoInfo_json    = json.loads(videoInfo_Res[0])
 
         # if downloadInfo_Res and videoInfo_Res:
@@ -678,9 +678,9 @@ def getfolderbvlist(folderpath):
 
 # 使用账号来更新文件夹内的视频状态
 
-def markDelVideo(user_txt,updatepath):
-    cookiejar = cake_login(user_txt) # 登陆9527账号
+def markDelVideo(updatepath):
     time.sleep(1)
+    print('[-]Start Mark Deleted Videos...')
     # 删稿视频查询,同时更新评分
     if os.path.exists(updatepath):
         for folderfilename in os.listdir(updatepath):
@@ -721,11 +721,15 @@ def markDelVideo(user_txt,updatepath):
 
 # 删除距离当前时间过久的作品
 def rmOutDatedVideo(folder,fileTimeOut=7*24*60*60): 
+    print('[-]Start Remove OutDated Videos...')
     for video in os.listdir(folder):
         # print('-----',video,'-----',)
         # print('创建时间：',time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(int(os.path.getctime(os.path.join(folder,video))))))
-        keyList = ['【删】','【极】','【空】','【露】','【抖】']
-        uidList = ['429515618','941422','49676','11542325','5450314','52933528','23400436']
+        keyList = ['【删】','【极】','【空】','【露】','【抖】','【超极','【精】']
+        up_list = getSubscribUps(-10) # 获得特别关注的Up
+        up_favor_list = getSubscribUps(432446) # 获取最爱Up
+        uidList = [str(up['uid']) for up in (up_list+up_favor_list)]
+        # uidList = ['429515618','941422','49676','11542325','5450314','52933528','23400436']
         uid = video.split('_')[-3];
         try:
             if((time.time() - os.path.getctime(os.path.join(folder,video))) > fileTimeOut) and (video[0:3] not in keyList) and (uid not in uidList): # 删除不想保留的文件
@@ -768,7 +772,7 @@ updatepath  = os.path.join(os.getcwd(),updatefolder)
 
 
 # 寄存当前时间，通过检测时间的变化执行程序。
-lastRecordTime = time.localtime(time.time())[updateFreq] # Get Time Now
+lastRecordTime = -1 # Get Time Now
 print('Start AutoDetect Process.')
 run_cnt = 0 
 while(True):
@@ -781,7 +785,8 @@ while(True):
             os.system(cmd)
         except Exception as e:
             print(e)
-        markDelVideo(cookies_filename_9527,updatepath)
+        cookiejar = cake_login(cookies_filename_9527) # 登陆9527账号
+        markDelVideo(updatepath)
         rmOutDatedVideo(updatepath,VideoTimeOut)
         dfStorage()
 
